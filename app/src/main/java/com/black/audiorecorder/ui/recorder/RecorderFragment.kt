@@ -9,11 +9,13 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.airbnb.lottie.LottieDrawable
 import com.black.audiorecorder.R
 import com.black.audiorecorder.databinding.FragmentRecorderBinding
 import com.black.audiorecorder.ui.MainViewModel
 import com.black.audiorecorder.utils.AudioRecorder
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -41,17 +43,39 @@ class RecorderFragment : Fragment(R.layout.fragment_recorder) {
         _binding = FragmentRecorderBinding.bind(view)
         initViews()
         initObservers()
-        initFeatures()
         findNavController().addOnDestinationChangedListener { _, destination, _ ->
             if (destination.id != R.id.recorderFragment) {
                 viewModel.stopRecording()
+                viewModel.updateRecorderState(RecorderViewModel.RecorderState.RecordingStopped)
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        initFeatures()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (viewModel.recorderState == RecorderViewModel.RecorderState.RecordingStarted) {
+            viewModel.resumeRecording()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (viewModel.recorderState == RecorderViewModel.RecorderState.RecordingStarted) {
+            viewModel.pauseRecording()
         }
     }
 
     private fun initFeatures() {
         lifecycleScope.launch {
-            viewModel.startRecording()
+            if (viewModel.recorderState == RecorderViewModel.RecorderState.Idle) {
+                viewModel.startRecording()
+                viewModel.updateRecorderState(RecorderViewModel.RecorderState.RecordingStarted)
+            }
         }
     }
 
@@ -59,6 +83,11 @@ class RecorderFragment : Fragment(R.layout.fragment_recorder) {
         with(binding) {
             stopButton.setOnClickListener {
                 viewModel.stopRecording()
+                viewModel.updateRecorderState(RecorderViewModel.RecorderState.RecordingStopped)
+            }
+
+            if (viewModel.recorderState == RecorderViewModel.RecorderState.RecordingPaused) {
+                updatePauseButtonUi(true)
             }
 
             pauseButton.setOnClickListener {
@@ -67,11 +96,13 @@ class RecorderFragment : Fragment(R.layout.fragment_recorder) {
                     getText(R.string.pause_recording) -> {
                         updatePauseButtonUi(true)
                         viewModel.pauseRecording()
+                        viewModel.updateRecorderState(RecorderViewModel.RecorderState.RecordingPaused)
                     }
 
                     getText(R.string.resume_recording) -> {
                         updatePauseButtonUi(false)
                         viewModel.resumeRecording()
+                        viewModel.updateRecorderState(RecorderViewModel.RecorderState.RecordingResumed)
                     }
                 }
             }
@@ -111,10 +142,12 @@ class RecorderFragment : Fragment(R.layout.fragment_recorder) {
 
     private fun updatePauseButtonUi(isPaused: Boolean) {
         if (isPaused) {
+            binding.lottieAnime.pauseAnimation()
             binding.pauseButton.text = getText(R.string.resume_recording)
             binding.pauseButton.icon =
                 ResourcesCompat.getDrawable(resources, R.drawable.ic_play, null)
         } else {
+            binding.lottieAnime.resumeAnimation()
             binding.pauseButton.text = getText(R.string.pause_recording)
             binding.pauseButton.icon =
                 ResourcesCompat.getDrawable(resources, R.drawable.ic_pause, null)
@@ -122,10 +155,10 @@ class RecorderFragment : Fragment(R.layout.fragment_recorder) {
     }
 
 
-
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+        lifecycleScope.coroutineContext.cancelChildren()
     }
 
 }

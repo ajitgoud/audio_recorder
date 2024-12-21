@@ -6,14 +6,20 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.*
 import androidx.core.content.FileProvider
+import androidx.core.view.MenuHost
+import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -21,10 +27,13 @@ import com.black.audiorecorder.R
 import com.black.audiorecorder.adapters.RecordingListAdapter
 import com.black.audiorecorder.data.model.RecordingItem
 import com.black.audiorecorder.databinding.FragmentHomeBinding
+import com.black.audiorecorder.ui.MainActivity
 import com.black.audiorecorder.ui.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.io.File
 
 @AndroidEntryPoint
@@ -38,12 +47,13 @@ class HomeFragment : Fragment(R.layout.fragment_home),
     private val binding get() = _binding!!
 
     private val listAdapter: RecordingListAdapter by lazy {
-        RecordingListAdapter(this)
+        RecordingListAdapter(this, viewModel.recordingList.isNotEmpty())
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentHomeBinding.bind(view)
+        Timber.d("HomeFragment onViewCreated")
         initViews()
         initObservers()
         activityViewModel.getAudioRecordings(requireContext())
@@ -57,14 +67,69 @@ class HomeFragment : Fragment(R.layout.fragment_home),
                 adapter = listAdapter
                 setHasFixedSize(true)
             }
+
+        }
+    }
+
+
+    private fun addOptionMenu() {
+        val activity = requireActivity() as MainActivity? ?: return
+        activity.binding.toolbar.addMenuProvider(menuProvider, viewLifecycleOwner)
+    }
+
+    private fun removeOptionMenu() {
+        val activity = requireActivity() as MainActivity? ?: return
+        activity.binding.toolbar.removeMenuProvider(menuProvider)
+    }
+
+    private val menuProvider = object : MenuProvider {
+        override fun onPrepareMenu(menu: Menu) {
+            super.onPrepareMenu(menu)
+        }
+
+        override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+            menuInflater.inflate(R.menu.home_menu, menu)
+        }
+
+        override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+            return when (menuItem.itemId) {
+                R.id.action_delete -> {
+                    activityViewModel.deleteRecordings(viewModel.recordingList)
+                    viewModel.clearRecordingList()
+                    true
+                }
+
+                R.id.action_cancel -> {
+                    viewModel.clearRecordingList()
+                    true
+                }
+
+                else -> false
+            }
         }
     }
 
     private fun initObservers() {
         uiObserver()
         recordingsObserver()
+        recordingItemSelectionObserver()
     }
 
+    private fun recordingItemSelectionObserver() {
+        lifecycleScope.launch {
+            viewModel.isRecordingItemSelected.collectLatest { isSelectionMode ->
+                if (isSelectionMode) {
+
+                    binding.startRecordingButton.visibility = View.GONE
+                    addOptionMenu()
+                } else {
+                    binding.startRecordingButton.visibility = View.VISIBLE
+                    listAdapter.clearSelectionMode()
+                    removeOptionMenu()
+                }
+            }
+        }
+    }
 
     private fun playItem(item: RecordingItem) {
         val file = File(item.path)
@@ -107,14 +172,24 @@ class HomeFragment : Fragment(R.layout.fragment_home),
 
     private fun recordingsObserver() {
         lifecycleScope.launch {
-            activityViewModel.recordingsListFlow.collectLatest {
-                when (it) {
+            activityViewModel.recordingsListFlow.collectLatest {state->
+                when (state) {
                     is MainViewModel.RecordingFileState.NewRecordingAvailable -> {
                         activityViewModel.getAudioRecordings(requireContext())
                     }
 
                     is MainViewModel.RecordingFileState.Success -> {
-                        listAdapter.submitList(it.recordings)
+                        val newList = state.recordings
+
+                        if(viewModel.recordingList.isNotEmpty()){
+                            val selectedItems = viewModel.recordingList
+                            newList.forEach { recording ->
+                                if (selectedItems.any { it.path == recording.path }) {
+                                    recording.isSelected = true
+                                }
+                            }
+                        }
+                        listAdapter.submitList(newList)
                     }
                 }
             }
@@ -171,10 +246,23 @@ class HomeFragment : Fragment(R.layout.fragment_home),
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+        lifecycleScope.coroutineContext.cancelChildren()
     }
 
     override fun onRecordingItemClicked(recordingItem: RecordingItem) {
         playItem(recordingItem)
+    }
+
+    override fun onRecordingItemSelectionChanged(recordingItem: RecordingItem) {
+        if (recordingItem.isSelected) {
+            viewModel.addRecording(recordingItem)
+        } else {
+            viewModel.removeRecording(recordingItem)
+        }
+    }
+
+    override fun onRecordingItemLongClicked(recordingItem: RecordingItem) {
+        viewModel.addRecording(recordingItem)
     }
 
 }

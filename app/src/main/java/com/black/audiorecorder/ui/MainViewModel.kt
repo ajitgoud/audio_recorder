@@ -26,9 +26,7 @@ class MainViewModel @Inject constructor(
 
 
     private val _recordingsListFlow: MutableSharedFlow<RecordingFileState> = MutableSharedFlow(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_LATEST
+        replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_LATEST
     )
     val recordingsListFlow = _recordingsListFlow.asSharedFlow()
 
@@ -48,6 +46,13 @@ class MainViewModel @Inject constructor(
         _recordings.clear()
         _recordings.addAll(recordings)
         _recordingsListFlow.tryEmit(RecordingFileState.Success(recordings))
+    }
+
+    fun deleteRecordings(recordingList: List<RecordingItem>) {
+        // Delete audio recordings
+        Timber.i("Deleting audio recordings")
+        fileHelper.deleteAudioRecordings(recordingList)
+        _recordingsListFlow.tryEmit(RecordingFileState.NewRecordingAvailable)
     }
 
     sealed interface RecordingFileState {
