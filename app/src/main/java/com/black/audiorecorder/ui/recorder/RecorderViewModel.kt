@@ -9,7 +9,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class RecorderViewModel @Inject constructor(
-    private val audioRecorder: AudioRecorder
+    private val audioRecorder: AudioRecorder,
+    private val settingsDataStore: SettingsDataStore,
 ) : ViewModel() {
 
     val recorderStateFlow = audioRecorder.recorderStateFlow
@@ -17,7 +18,10 @@ class RecorderViewModel @Inject constructor(
         private set
 
     fun startRecording() {
-        audioRecorder.startRecording()
+        audioRecorder.startRecording(
+            settingsDataStore.audioSampleRate,
+            settingsDataStore.audioChannel
+        )
     }
 
     fun stopRecording() {
@@ -32,7 +36,7 @@ class RecorderViewModel @Inject constructor(
         audioRecorder.resumeRecording()
     }
 
-     fun updateRecorderState(state: RecorderState) {
+    fun updateRecorderState(state: RecorderState) {
         recorderState = state
     }
 

@@ -26,13 +26,19 @@ class AudioRecorder @Inject constructor() {
 
     private val audioBuffers: MutableList<ByteArray> = mutableListOf()
 
-    init {
-        initRecorder()
-    }
-
-    private fun initRecorder() {
+    fun initRecorder(sampleRate: Int, channel: Int) {
         // Initialize the recorder
-        recorder = AudioRecordBuilder.Builder().build()
+        val minBufferSize = AudioRecord.getMinBufferSize(
+            sampleRate,
+            channel,
+            AudioRecordBuilder.DEFAULT_AUDIO_FORMAT
+        )
+        recorder =
+            AudioRecordBuilder.Builder()
+                .setSampleRate(sampleRate)
+                .setChannelConfig(channel)
+                .setBufferSizeInBytes(minBufferSize)
+                .build()
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             emitState(RecorderState.Error("Recorder not initialized"))
             return
@@ -41,9 +47,9 @@ class AudioRecorder @Inject constructor() {
     }
 
 
-    fun startRecording(): Boolean {
+    fun startRecording(sampleRate: Int, channel: Int): Boolean {
         // Start recording
-        if (!ensureRecorderInitialized()) {
+        if (!ensureRecorderInitialized(sampleRate, channel)) {
             emitState(RecorderState.Error("Recorder not initialized"))
             return false
         }
@@ -118,9 +124,9 @@ class AudioRecorder @Inject constructor() {
         }
     }
 
-    private fun ensureRecorderInitialized(): Boolean {
+    private fun ensureRecorderInitialized(sampleRate: Int, channel: Int): Boolean {
         if (!::recorder.isInitialized || recorder.state != AudioRecord.STATE_INITIALIZED) {
-            initRecorder()
+            initRecorder(sampleRate, channel)
         }
         return recorder.state == AudioRecord.STATE_INITIALIZED
     }

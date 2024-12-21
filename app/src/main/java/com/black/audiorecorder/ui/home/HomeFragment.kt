@@ -69,6 +69,7 @@ class HomeFragment : Fragment(R.layout.fragment_home),
             }
 
         }
+        addOptionMenu()
     }
 
 
@@ -82,6 +83,15 @@ class HomeFragment : Fragment(R.layout.fragment_home),
         activity.binding.toolbar.removeMenuProvider(menuProvider)
     }
 
+    private fun toggleMenuItems(isSelectionMode: Boolean) {
+        val activity = requireActivity() as MainActivity? ?: return
+        val menu = activity.binding.toolbar.menu ?: return
+        Timber.d("MENU_CHECK toggleMenuItems: $isSelectionMode")
+        menu.findItem(R.id.action_delete).isVisible = isSelectionMode
+        menu.findItem(R.id.action_cancel).isVisible = isSelectionMode
+        menu.findItem(R.id.action_settings).isVisible = !isSelectionMode
+    }
+
     private val menuProvider = object : MenuProvider {
         override fun onPrepareMenu(menu: Menu) {
             super.onPrepareMenu(menu)
@@ -89,6 +99,11 @@ class HomeFragment : Fragment(R.layout.fragment_home),
 
         override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
             menuInflater.inflate(R.menu.home_menu, menu)
+            val isSelectionMode = viewModel.recordingList.isNotEmpty()
+            Timber.d("MENU_CHECK menuProvider: $isSelectionMode")
+            menu.findItem(R.id.action_delete).isVisible = isSelectionMode
+            menu.findItem(R.id.action_cancel).isVisible = isSelectionMode
+            menu.findItem(R.id.action_settings).isVisible = !isSelectionMode
         }
 
         override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
@@ -104,13 +119,17 @@ class HomeFragment : Fragment(R.layout.fragment_home),
                     true
                 }
 
+                R.id.action_settings -> {
+                    findNavController().navigate(HomeFragmentDirections.actionHomeToSettings())
+                    true
+                }
+
                 else -> false
             }
         }
     }
 
     private fun initObservers() {
-        uiObserver()
         recordingsObserver()
         recordingItemSelectionObserver()
     }
@@ -119,24 +138,22 @@ class HomeFragment : Fragment(R.layout.fragment_home),
         lifecycleScope.launch {
             viewModel.isRecordingItemSelected.collectLatest { isSelectionMode ->
                 if (isSelectionMode) {
-
                     binding.startRecordingButton.visibility = View.GONE
-                    addOptionMenu()
+                    toggleMenuItems(true)
                 } else {
                     binding.startRecordingButton.visibility = View.VISIBLE
                     listAdapter.clearSelectionMode()
-                    removeOptionMenu()
                 }
+                toggleMenuItems(isSelectionMode)
             }
         }
     }
 
+
     private fun playItem(item: RecordingItem) {
         val file = File(item.path)
         val uri = FileProvider.getUriForFile(
-            requireContext(),
-            "${requireContext().packageName}.provider",
-            file
+            requireContext(), "${requireContext().packageName}.provider", file
         )
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "audio/wav")
@@ -146,33 +163,15 @@ class HomeFragment : Fragment(R.layout.fragment_home),
             startActivity(intent)
         } else {
             // Handle the case where no activity can handle the intent
-            AlertDialog.Builder(requireContext())
-                .setTitle("No Application Found")
+            AlertDialog.Builder(requireContext()).setTitle("No Application Found")
                 .setMessage("No application available to play this audio file.")
-                .setPositiveButton("OK", null)
-                .show()
-        }
-    }
-
-    private fun uiObserver() {
-        lifecycleScope.launch {
-            activityViewModel.uiStateFlow.collectLatest {
-//                when (it) {
-//                    is MainViewModel.UiState.Loading -> {
-//                        binding.progressBar.visibility = View.VISIBLE
-//                    }
-//
-//                    is MainViewModel.UiState.Success -> {
-//                        binding.progressBar.visibility = View.GONE
-//                    }
-//                }
-            }
+                .setPositiveButton("OK", null).show()
         }
     }
 
     private fun recordingsObserver() {
         lifecycleScope.launch {
-            activityViewModel.recordingsListFlow.collectLatest {state->
+            activityViewModel.recordingsListFlow.collectLatest { state ->
                 when (state) {
                     is MainViewModel.RecordingFileState.NewRecordingAvailable -> {
                         activityViewModel.getAudioRecordings(requireContext())
@@ -180,16 +179,22 @@ class HomeFragment : Fragment(R.layout.fragment_home),
 
                     is MainViewModel.RecordingFileState.Success -> {
                         val newList = state.recordings
-
-                        if(viewModel.recordingList.isNotEmpty()){
-                            val selectedItems = viewModel.recordingList
-                            newList.forEach { recording ->
-                                if (selectedItems.any { it.path == recording.path }) {
-                                    recording.isSelected = true
+                        if (newList.isEmpty()) {
+                            binding.emptyRecordingGroup.visibility = View.VISIBLE
+                            binding.recyclerView.visibility = View.GONE
+                        } else {
+                            binding.emptyRecordingGroup.visibility = View.GONE
+                            binding.recyclerView.visibility = View.VISIBLE
+                            if (viewModel.recordingList.isNotEmpty()) {
+                                val selectedItems = viewModel.recordingList
+                                newList.forEach { recording ->
+                                    if (selectedItems.any { it.path == recording.path }) {
+                                        recording.isSelected = true
+                                    }
                                 }
                             }
+                            listAdapter.submitList(newList)
                         }
-                        listAdapter.submitList(newList)
                     }
                 }
             }
@@ -209,8 +214,7 @@ class HomeFragment : Fragment(R.layout.fragment_home),
     private fun checkAudioPermission() {
         when {
             checkSelfPermission(
-                requireContext(),
-                Manifest.permission.RECORD_AUDIO
+                requireContext(), Manifest.permission.RECORD_AUDIO
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
                 navigateToRecorder()
             }
@@ -226,17 +230,14 @@ class HomeFragment : Fragment(R.layout.fragment_home),
     }
 
     private fun showPermissionDeniedDialog() {
-        AlertDialog.Builder(requireContext())
-            .setTitle("Permission Required")
+        AlertDialog.Builder(requireContext()).setTitle("Permission Required")
             .setMessage("Audio recording permission is required to use this feature. Please enable it in the app settings.")
             .setPositiveButton("Settings") { _, _ ->
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                     data = Uri.fromParts("package", requireContext().packageName, null)
                 }
                 startActivity(intent)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+            }.setNegativeButton("Cancel", null).show()
     }
 
     private fun navigateToRecorder() {
@@ -245,6 +246,7 @@ class HomeFragment : Fragment(R.layout.fragment_home),
 
     override fun onDestroyView() {
         super.onDestroyView()
+        removeOptionMenu()
         _binding = null
         lifecycleScope.coroutineContext.cancelChildren()
     }

@@ -6,6 +6,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
@@ -14,12 +15,14 @@ import androidx.navigation.ui.setupWithNavController
 import com.black.audiorecorder.R
 import com.black.audiorecorder.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
-     val binding: ActivityMainBinding by lazy {
+    val binding: ActivityMainBinding by lazy {
         ActivityMainBinding.inflate(layoutInflater)
     }
 
@@ -31,7 +34,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         initInsets()
         initNavigation()
-
     }
 
     private fun initInsets() {

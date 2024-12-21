@@ -6,4 +6,6 @@
     <string name="start_recording">Start recording</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>
+    <string name="setting">Setting</string>
+    <string name="no_recordings">Start a new recording!</string>
 </resources>

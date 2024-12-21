@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,8 +21,8 @@ class SettingsDataStore @Inject constructor(@ApplicationContext context: Context
     private val dataStore = context.dataStore
 
     companion object {
-        const val KEY_RECORDING_CHANNEL = "recording_channel"
-        const val KEY_RECORDING_SAMPLE_RATE = "recording_sample_rate"
+        private const val KEY_RECORDING_CHANNEL = "recording_channel"
+        private const val KEY_RECORDING_SAMPLE_RATE = "recording_sample_rate"
         val recordingChannelKey = intPreferencesKey(KEY_RECORDING_CHANNEL)
         val recordingSampleRateKey = intPreferencesKey(KEY_RECORDING_SAMPLE_RATE)
 
@@ -34,6 +35,14 @@ class SettingsDataStore @Inject constructor(@ApplicationContext context: Context
     var audioFormat: Int = AudioRecordBuilder.DEFAULT_AUDIO_FORMAT
         private set
 
+    suspend fun updateRecordingSampleRate(sampleRate: Int) {
+        dataStore.edit { settings ->
+            settings[recordingSampleRateKey] = sampleRate
+            audioSampleRate = sampleRate
+        }
+    }
+
+    fun getSettings(): Flow<Preferences> = dataStore.data
     suspend fun updateRecordingChannel(channel: Int) {
         dataStore.edit { settings ->
             settings[recordingChannelKey] = channel
@@ -41,12 +50,15 @@ class SettingsDataStore @Inject constructor(@ApplicationContext context: Context
         }
     }
 
-    suspend fun updateRecordingSampleRate(sampleRate: Int) {
+    suspend fun updateSettings(sampleRate: Int, channel: Int) {
         dataStore.edit { settings ->
             settings[recordingSampleRateKey] = sampleRate
             audioSampleRate = sampleRate
+            settings[recordingChannelKey] = channel
+            audioChannel = channel
         }
     }
+
 
     suspend fun getRecordingChannel(): Int {
         val preferences = dataStore.data.first()
