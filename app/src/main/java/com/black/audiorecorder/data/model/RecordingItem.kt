@@ -4,5 +4,6 @@ data class RecordingItem(
     val name: String,
     val path: String,
     val length: Long,
-    val time: Long
+    val time: Long,
+    var isSelected: Boolean = false
 )

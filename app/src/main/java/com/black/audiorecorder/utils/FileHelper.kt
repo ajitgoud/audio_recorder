@@ -75,5 +75,14 @@ class FileHelper @Inject constructor(private val settingsDataStore: SettingsData
 
     }
 
+    fun deleteAudioRecordings(recordingList: List<RecordingItem>) {
+        recordingList.forEach { recordingItem ->
+            val file = File(recordingItem.path)
+            if (file.exists()) {
+                file.delete()
+            }
+        }
+    }
+
 
 }

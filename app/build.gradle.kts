@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.lottie)
     implementation(libs.timber)
+    implementation(libs.glide)
 }
 
 

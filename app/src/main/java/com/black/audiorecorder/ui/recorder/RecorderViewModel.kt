@@ -13,6 +13,8 @@ class RecorderViewModel @Inject constructor(
 ) : ViewModel() {
 
     val recorderStateFlow = audioRecorder.recorderStateFlow
+    var recorderState: RecorderState = RecorderState.Idle
+        private set
 
     fun startRecording() {
         audioRecorder.startRecording()
@@ -28,6 +30,18 @@ class RecorderViewModel @Inject constructor(
 
     fun resumeRecording() {
         audioRecorder.resumeRecording()
+    }
+
+     fun updateRecorderState(state: RecorderState) {
+        recorderState = state
+    }
+
+    enum class RecorderState {
+        Idle,
+        RecordingStarted,
+        RecordingPaused,
+        RecordingResumed,
+        RecordingStopped
     }
 
 
